@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<body>
+<video id="video" controls width="500" src="../complete.mp4"></video>
+<button id="record">开始录音</button>
+
+<script>
+let recorder, chunks = [];
+
+document.getElementById('record').onclick = async () => {
+  const video = document.getElementById("video");
+
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaElementSource(video);
+  const dest = audioCtx.createMediaStreamDestination();
+  source.connect(dest);
+  source.connect(audioCtx.destination); // 保证声音能正常播放
+
+  recorder = new MediaRecorder(dest.stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+
+  recorder.onstop = async () => {
+    const blob = new Blob(chunks, {type: 'audio/webm'});
+    const form = new FormData();
+    form.append("audio", blob);
+
+    const res = await fetch("http://localhost:5000/upload", {
+      method: "POST",
+      body: form
+    });
+
+    const result = await res.json();
+    alert("识别结果：" + result.text);
+  };
+
+  recorder.start();
+  video.play();
+
+  setTimeout(() => {
+    recorder.stop();
+  }, 15000); // 录制 15 秒
+};
+</script>
+</body>
+</html>
