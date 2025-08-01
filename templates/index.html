@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+.container {
+    position: relative;
+    display: inline-block;
+}
+
+.video-container {
+    position: relative;
+    display: inline-block;
+}
+
+#video {
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.controls {
+    margin: 20px 0;
+}
+
+#record {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+#record:hover {
+    background-color: #0056b3;
+}
+
+#record:active {
+    background-color: #004085;
+}
+
+.status-info {
+    margin: 10px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+#status {
+    font-weight: bold;
+    color: #007bff;
+}
+
+#volume {
+    color: #28a745;
+}
+
+.results-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    max-width: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: transparent; /* 完全透明 */
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: none;
+    backdrop-filter: none;
+    border: none;
+    pointer-events: none; /* 允许点击穿透 */
+    z-index: 1000; /* 确保悬浮在最上层 */
+}
+
+.segment-item {
+    background: rgba(255,255,255,0.85); /* 卡片本身半透明，便于阅读 */
+    border-left: 4px solid #007bff;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    pointer-events: auto; /* 卡片可选中 */
+}
+
+.segment-item strong {
+    color: #007bff;
+}
+
+.segment-text {
+    margin-top: 5px;
+    color: #333;
+}
+
+.no-results {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* 滚动条样式 */
+.results-overlay::-webkit-scrollbar {
+    width: 6px;
+}
+
+.results-overlay::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.results-overlay::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.results-overlay::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.results-header {
+    background: rgba(255,255,255,0.7);
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin-bottom: 10px;
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    pointer-events: auto;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="video-container">
+        <video id="video" controls width="500" src="{{ url_for('static', filename='complete.mp4') }}"></video>
+        
+        <div class="results-overlay" id="resultsOverlay">
+            <div class="results-header">识别结果</div>
+            <div id="segments">
+                <div class="no-results">等待识别结果...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="record">开始录音</button>
+    </div>
+    
+    <div class="status-info">
+        <div id="status">状态: 未开始</div>
+        <div id="volume">音量: 0</div>
+    </div>
+</div>
+
+<script>
+let recorder, chunks = [];
+let isRecording = false;
+let silenceTimer = null;
+let segmentCount = 0;
+
+// 上传音频片段
+async function uploadSegment(blob) {
+  console.log('🚀 开始上传音频片段...');
+  console.log('📊 音频数据大小:', blob.size, '字节');
+    // 打印 Blob 的前16字节内容（可判断是否为 webm 文件头）
+  blob.slice(0, 16).arrayBuffer().then(buf => {
+    const arr = Array.from(new Uint8Array(buf));
+    console.log('音频文件前16字节:', arr);
+  });
+  const form = new FormData();
+  form.append("audio", blob);
+
+  try {
+    console.log('📡 发送请求到服务器...');
+    const res = await fetch("http://localhost:5000/upload", {
+      method: "POST",
+      body: form
+    });
+
+    const result = await res.json();
+    console.log('📥 服务器响应:', result);
+    
+    if (result.error) {
+      // 显示错误信息
+      const segmentsDiv = document.getElementById('segments');
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'segment-item';
+      errorDiv.style.borderLeftColor = '#dc3545';
+      errorDiv.innerHTML = `
+        <strong style="color: #dc3545;">错误</strong>
+        <div class="segment-text" style="color: #dc3545;">${result.error}</div>
+      `;
+      segmentsDiv.appendChild(errorDiv);
+      console.error('❌ 上传失败:', result.error);
+      return;
+    }
+    
+    segmentCount++;
+    console.log('✅ 上传成功，片段编号:', segmentCount);
+    
+    // 显示识别结果
+    const segmentsDiv = document.getElementById('segments');
+    
+    // 移除"等待识别结果"的提示
+    if (segmentCount === 1) {
+      segmentsDiv.innerHTML = '';
+    }
+    
+    const segmentDiv = document.createElement('div');
+    segmentDiv.className = 'segment-item';
+    segmentDiv.innerHTML = `
+      <strong>片段 ${segmentCount}</strong>
+      <div class="segment-text">${result.text}</div>
+    `;
+    segmentsDiv.appendChild(segmentDiv);
+    
+    // 自动滚动到最新结果
+    segmentDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    
+    console.log(`📝 片段 ${segmentCount} 识别结果:`, result.text);
+  } catch (error) {
+    console.error('❌ 上传失败:', error);
+    // 显示网络错误
+    const segmentsDiv = document.getElementById('segments');
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'segment-item';
+    errorDiv.style.borderLeftColor = '#dc3545';
+    errorDiv.innerHTML = `
+      <strong style="color: #dc3545;">网络错误</strong>
+      <div class="segment-text" style="color: #dc3545;">连接服务器失败</div>
+    `;
+    segmentsDiv.appendChild(errorDiv);
+  }
+}
+
+document.getElementById('record').onclick = async () => {
+  const video = document.getElementById("video");
+  const statusDiv = document.getElementById('status');
+  const segmentsDiv = document.getElementById('segments');
+  const volumeDiv = document.getElementById('volume');
+  
+  if (isRecording) {
+    // 停止录制
+    console.log('⏹️ 停止录制...');
+    isRecording = false;
+    recorder.stop();
+    if (silenceTimer) {
+      clearTimeout(silenceTimer);
+      silenceTimer = null;
+      console.log('⏰ 清除静音计时器');
+    }
+    statusDiv.textContent = '状态: 已停止';
+    document.getElementById('record').textContent = '开始录音';
+    return;
+  }
+
+  // 开始录制
+  console.log('▶️ 开始录制...');
+  isRecording = true;
+  statusDiv.textContent = '状态: 录制中...';
+  document.getElementById('record').textContent = '停止录音';
+  segmentsDiv.innerHTML = '<div class="no-results">等待识别结果...</div>'; // 清空之前的结果
+  segmentCount = 0;
+
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaElementSource(video);
+  const dest = audioCtx.createMediaStreamDestination();
+  source.connect(dest);
+  source.connect(audioCtx.destination);
+
+  // 创建音频分析器用于检测语音活动
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+
+  // 检查支持的音频格式
+  const supportedTypes = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/wav'
+  ];
+  
+  let selectedType = 'audio/webm;codecs=opus';
+  for (const type of supportedTypes) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      selectedType = type;
+      console.log('✅ 使用音频格式:', type);
+      break;
+    }
+  }
+  
+  recorder = new MediaRecorder(dest.stream, {
+    mimeType: selectedType,
+    audioBitsPerSecond: 128000
+  });
+  chunks = [];
+
+  recorder.ondataavailable = e => {
+    chunks.push(e.data);
+    console.log('📦 收到音频数据块，当前chunks长度:', chunks.length);
+    console.log('📦 数据块大小:', e.data.size, '字节');
+  };
+
+  recorder.onstop = async () => {
+    console.log('🛑 MediaRecorder停止，准备上传最终片段');
+    if (chunks.length > 0) {
+      const blob = new Blob(chunks, {type: 'audio/webm'});
+      await uploadSegment(blob);
+    }
+  };
+
+  // 语音活动检测
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  
+  function checkVoiceActivity() {
+    if (!isRecording) return;
+    
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      sum += dataArray[i];
+    }
+    const average = sum / bufferLength;
+    
+    // 显示音量信息
+    volumeDiv.textContent = `音量: ${average.toFixed(2)}`;
+    
+    // 每10次检测才输出一次日志，避免日志过多
+    if (Math.random() < 0.1) {
+      console.log('🔊 当前音量:', average.toFixed(2));
+    }
+    
+    if (average > 40) { // 有声音
+      if (silenceTimer) {
+        console.log('🔊 检测到声音，清除静音计时器');
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+      }
+    } else { // 静音
+      if (!silenceTimer) {
+        console.log('🔇 检测到静音，启动2秒计时器');
+        silenceTimer = setTimeout(async () => {
+          console.log('⏰ 停顿超过2秒，准备上传片段');
+          console.log('📊 当前chunks长度:', chunks.length);
+          console.log('📊 录制状态:', isRecording);
+          
+          if (isRecording && chunks.length > 0) {
+            console.log('🚀 触发自动上传...');
+            const blob = new Blob(chunks, {type: 'audio/webm'});
+            chunks = []; // 清空当前片段
+            await uploadSegment(blob);
+          } else {
+            console.log('❌ 无法上传：录制已停止或没有音频数据');
+            console.log('   - 录制状态:', isRecording);
+            console.log('   - chunks长度:', chunks.length);
+          }
+        }, 2000); // 2秒停顿
+      }
+    }
+    
+    requestAnimationFrame(checkVoiceActivity);
+  }
+
+  recorder.start();
+  console.log('🎬 开始播放视频...');
+  video.play();
+  checkVoiceActivity();
+  
+  // 定期请求数据，确保MediaRecorder能收集到数据
+  setInterval(() => {
+    if (isRecording && recorder.state === 'recording') {
+      recorder.requestData();
+      console.log('📡 请求音频数据...');
+    }
+  }, 1000); // 每秒请求一次数据
+};
+</script>
+</body>
+</html>
