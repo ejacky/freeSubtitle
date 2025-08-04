@@ -4,13 +4,19 @@ import os
 import warnings
 import subprocess
 import tempfile
+import concurrent.futures
+import functools
+import shutil
+import datetime
+import random
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
 
 app = Flask(__name__)
 model = whisper.load_model("small")
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 @app.route('/upload', methods=['POST'])
-def upload():
+async def upload():
     try:
         audio = request.files['audio']
         if not audio:
@@ -26,43 +32,51 @@ def upload():
         # 转换为标准格式
         temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
         temp_output.close()
+
         
-        try:
-            # 使用ffmpeg转换音频格式
-            print("🔄 开始音频格式转换...")
-            result = subprocess.run([
-                'ffmpeg', '-i', temp_input.name, 
-                '-acodec', 'pcm_s16le', 
-                '-ar', '16000', 
-                '-ac', '1', 
-                '-y',  # 覆盖输出文件
-                temp_output.name
-            ], check=True, capture_output=True, text=True)
-            
-            print(f"✅ 音频转换成功，输出文件大小: {os.path.getsize(temp_output.name)} 字节")
-            
-            # 使用转换后的WAV文件进行转录
-            print("🎤 开始语音识别...")
-            result = model.transcribe(temp_output.name)
-            print("✅ 语音识别完成")
-            
-        except subprocess.CalledProcessError as e:
-            print(f"❌ 音频转换失败: {e.stderr}")
-            return jsonify({"error": f"音频转换失败: {e.stderr}"}), 500
-        except Exception as e:
-            print(f"❌ 转录失败: {str(e)}")
-            return jsonify({"error": f"转录失败: {str(e)}"}), 500
-        finally:
-            # 清理临时文件
+        def process_audio(input_name, output_name):
             try:
-                os.unlink(temp_input.name)
-                os.unlink(temp_output.name)
-                print("🧹 清理临时文件完成")
-            except:
-                pass
+                # 保存 input_name 和 output_name 到 debug_uploads 目录
+                os.makedirs('debug_uploads', exist_ok=True)
+                now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                rand = random.randint(1000, 9999)
+                shutil.copy(input_name, f'debug_uploads/upload_{now}_{rand}.webm')
+                print(f"    原始文件: upload_{now}_{rand}.webm")
+
+                print("🔄 开始音频格式转换...")
+                result = subprocess.run([
+                    'ffmpeg', '-i', input_name, 
+                    '-acodec', 'pcm_s16le', 
+                    '-ar', '16000', 
+                    '-ac', '1', 
+                    '-y',
+                    output_name
+                ], check=True, capture_output=True, text=True)
+                print(f"✅ 音频转换成功，输出文件大小: {os.path.getsize(output_name)} 字节")
+                print("🎤 开始语音识别...")
+                result = model.transcribe(output_name)
+                print("✅ 语音识别完成")
+                return {"text": result["text"]}
+            except subprocess.CalledProcessError as e:
+                print(f"❌ 音频转换失败: {e.stderr}")
+                return {"error": f"音频转换失败: {e.stderr}"}
+            except Exception as e:
+                print(f"❌ 转录失败: {str(e)}")
+                return {"error": f"转录失败: {str(e)}"}
+
         
-        return jsonify({"text": result["text"]})
-        
+        loop = None
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        result = await loop.run_in_executor(executor, functools.partial(process_audio, temp_input.name, temp_output.name))
+        if 'error' in result:
+            return jsonify(result), 500
+        return jsonify(result)
     except Exception as e:
         print(f"❌ 处理失败: {str(e)}")
         return jsonify({"error": f"处理失败: {str(e)}"}), 500

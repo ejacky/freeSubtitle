@@ -1,2 +1,7 @@
 flask
-whisper 
+whisper
+# whisper 依赖 torch
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# 音频处理依赖 ffmpeg，需系统已安装 ffmpeg
+# 如需用 Python 操作 ffmpeg，可安装 ffmpeg-python
+ffmpeg-python 

@@ -161,13 +161,34 @@ body {
 </div>
 
 <script>
+(function() {
+  function pad(n) { return n < 10 ? '0' + n : n; }
+  function getTime() {
+    const d = new Date();
+    return `[${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}]`;
+  }
+  ['log', 'warn', 'error', 'info', 'debug'].forEach(function(method) {
+    const orig = console[method];
+    console[method] = function(...args) {
+      orig.call(console, getTime(), ...args);
+    };
+  });
+})();
+
 let recorder, chunks = [];
 let isRecording = false;
 let silenceTimer = null;
 let segmentCount = 0;
+let isUploading = false; // 添加上传状态标志
 
 // 上传音频片段
 async function uploadSegment(blob) {
+  if (isUploading) {
+    console.log('⚠️ 已有上传进行中，跳过重复上传');
+    return;
+  }
+  
+  isUploading = true;
   console.log('🚀 开始上传音频片段...');
   console.log('📊 音频数据大小:', blob.size, '字节');
     // 打印 Blob 的前16字节内容（可判断是否为 webm 文件头）
@@ -238,6 +259,8 @@ async function uploadSegment(blob) {
       <div class="segment-text" style="color: #dc3545;">连接服务器失败</div>
     `;
     segmentsDiv.appendChild(errorDiv);
+  } finally {
+    isUploading = false; // 重置上传状态
   }
 }
 
@@ -308,12 +331,14 @@ document.getElementById('record').onclick = async () => {
     chunks.push(e.data);
     console.log('📦 收到音频数据块，当前chunks长度:', chunks.length);
     console.log('📦 数据块大小:', e.data.size, '字节');
+    console.log('📦 数据块类型:', e.data.type);
   };
 
   recorder.onstop = async () => {
     console.log('🛑 MediaRecorder停止，准备上传最终片段');
-    if (chunks.length > 0) {
-      const blob = new Blob(chunks, {type: 'audio/webm'});
+    // 只有在手动停止录制时才上传，避免与静音检测重复
+    if (chunks.length > 0 && !isRecording) {
+      const blob = new Blob(chunks, {type: selectedType});
       await uploadSegment(blob);
     }
   };
@@ -353,16 +378,29 @@ document.getElementById('record').onclick = async () => {
           console.log('⏰ 停顿超过2秒，准备上传片段');
           console.log('📊 当前chunks长度:', chunks.length);
           console.log('📊 录制状态:', isRecording);
+          console.log('📊 MediaRecorder状态:', recorder.state);
           
-          if (isRecording && chunks.length > 0) {
+          if (isRecording && chunks.length > 0 && recorder.state === 'recording') {
             console.log('🚀 触发自动上传...');
-            const blob = new Blob(chunks, {type: 'audio/webm'});
+            const blob = new Blob(chunks, {type: selectedType});
             chunks = []; // 清空当前片段
+            
+            // 停止当前录制并重新开始
+            recorder.stop();
+            setTimeout(() => {
+              if (isRecording) {
+                console.log('🔄 重新开始录制...');
+                chunks = [];
+                recorder.start();
+              }
+            }, 100);
+            
             await uploadSegment(blob);
           } else {
             console.log('❌ 无法上传：录制已停止或没有音频数据');
             console.log('   - 录制状态:', isRecording);
             console.log('   - chunks长度:', chunks.length);
+            console.log('   - MediaRecorder状态:', recorder.state);
           }
         }, 2000); // 2秒停顿
       }
