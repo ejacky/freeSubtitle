@@ -208,6 +208,10 @@ async function uploadSegment(blob) {
 
     const result = await res.json();
     console.log('📥 服务器响应:', result);
+
+    if (result.text == '') {
+      return;
+    }
     
     if (result.error) {
       // 显示错误信息
@@ -335,9 +339,10 @@ document.getElementById('record').onclick = async () => {
   };
 
   recorder.onstop = async () => {
-    console.log('🛑 MediaRecorder停止，准备上传最终片段');
+    console.log('🛑 MediaRecorder停止');
     // 只有在手动停止录制时才上传，避免与静音检测重复
     if (chunks.length > 0 && !isRecording) {
+      console.log('🛑 准备上传最终片段');
       const blob = new Blob(chunks, {type: selectedType});
       await uploadSegment(blob);
     }
@@ -383,10 +388,10 @@ document.getElementById('record').onclick = async () => {
           if (isRecording && chunks.length > 0 && recorder.state === 'recording') {
             console.log('🚀 触发自动上传...');
             const blob = new Blob(chunks, {type: selectedType});
+            recorder.stop();
             chunks = []; // 清空当前片段
             
             // 停止当前录制并重新开始
-            recorder.stop();
             setTimeout(() => {
               if (isRecording) {
                 console.log('🔄 重新开始录制...');
@@ -402,7 +407,7 @@ document.getElementById('record').onclick = async () => {
             console.log('   - chunks长度:', chunks.length);
             console.log('   - MediaRecorder状态:', recorder.state);
           }
-        }, 2000); // 2秒停顿
+        }, 1050); // 2秒停顿
       }
     }
     
@@ -422,6 +427,23 @@ document.getElementById('record').onclick = async () => {
     }
   }, 1000); // 每秒请求一次数据
 };
+
+const video = document.getElementById("video");
+video.addEventListener('ended', () => {
+  console.log('🎬 视频播放完毕');
+  // 这里可以自动停止录音
+  if (isRecording) {
+    isRecording = false;
+    recorder.stop();
+    if (silenceTimer) {
+      clearTimeout(silenceTimer);
+      silenceTimer = null;
+      console.log('⏰ 清除静音计时器');
+    }
+    document.getElementById('status').textContent = '状态: 已停止';
+    document.getElementById('record').textContent = '开始录音';
+  }
+});
 </script>
 </body>
 </html>

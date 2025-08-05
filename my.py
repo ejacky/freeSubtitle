@@ -36,13 +36,6 @@ async def upload():
         
         def process_audio(input_name, output_name):
             try:
-                # 保存 input_name 和 output_name 到 debug_uploads 目录
-                os.makedirs('debug_uploads', exist_ok=True)
-                now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-                rand = random.randint(1000, 9999)
-                shutil.copy(input_name, f'debug_uploads/upload_{now}_{rand}.webm')
-                print(f"    原始文件: upload_{now}_{rand}.webm")
-
                 print("🔄 开始音频格式转换...")
                 result = subprocess.run([
                     'ffmpeg', '-i', input_name, 
@@ -54,7 +47,7 @@ async def upload():
                 ], check=True, capture_output=True, text=True)
                 print(f"✅ 音频转换成功，输出文件大小: {os.path.getsize(output_name)} 字节")
                 print("🎤 开始语音识别...")
-                result = model.transcribe(output_name)
+                result = model.transcribe(output_name, language="en")
                 print("✅ 语音识别完成")
                 return {"text": result["text"]}
             except subprocess.CalledProcessError as e:
