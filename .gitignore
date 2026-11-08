@@ -1,2 +1,9 @@
-static/*
-debug*
+# new extension
+extension/node_modules/
+extension/dist/
+extension/.npm-cache/
+freeSubtitle-*.zip
+
+# local ASR build artifacts / models
+local-asr/vendor/
+local-asr/models/

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>freeSubtitle</title>
+    <link rel="stylesheet" href="./ui/popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="hero">
+        <div class="brand">
+          <span class="logo">字</span>
+          <div>
+            <h1>freeSubtitle</h1>
+            <p class="subtitle">网页视频 → 中文字幕</p>
+          </div>
+        </div>
+        <span id="statusDot" class="dot" aria-hidden="true"></span>
+      </header>
+
+      <section class="status-card" aria-live="polite">
+        <div id="statusText" class="status-text">正在检查当前页面…</div>
+        <div id="detail" class="detail"></div>
+      </section>
+
+      <label class="field">
+        <span>字幕来源</span>
+        <select id="modeSelect">
+          <option value="auto">自动（优先字幕轨）</option>
+          <option value="captions">只用字幕轨</option>
+          <option value="audio">只用音频识别</option>
+        </select>
+      </label>
+
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始翻译本页视频</button>
+        <button id="stopBtn" class="secondary" type="button" hidden>停止</button>
+      </div>
+
+      <div id="notice" class="notice" hidden></div>
+
+      <section class="providers">
+        <div class="section-title">服务状态</div>
+        <div id="providerList" class="provider-list"></div>
+      </section>
+
+      <footer>
+        <button id="optionsLink" class="link" type="button">设置与 API Key</button>
+        <span id="stats" class="stats"></span>
+      </footer>
+    </main>
+    <script type="module" src="./ui/popup.js"></script>
+  </body>
+</html>

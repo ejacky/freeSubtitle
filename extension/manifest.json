@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "freeSubtitle — 网页视频中文字幕",
+  "version": "0.1.2",
+  "description": "把网页视频的外语字幕/语音翻译成中文，覆盖在视频上。支持字幕轨优先与标签页音频识别。",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabCapture",
+    "offscreen",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://opencode.ai/*",
+    "https://api.groq.com/*",
+    "https://api.openai.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "翻译本页视频",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_page": "options.html",
+  "commands": {
+    "toggle-translation": {
+      "suggested_key": {
+        "default": "Alt+Shift+Y"
+      },
+      "description": "开始/停止当前视频翻译"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "worklet/*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

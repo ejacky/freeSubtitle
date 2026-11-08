@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>freeSubtitle 设置</title>
+    <link rel="stylesheet" href="./ui/options.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">字</span>
+        <div>
+          <h1>freeSubtitle 设置</h1>
+          <p>字幕翻译服务、语音识别、本地模型与隐私</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="saveState" class="save-state" aria-live="polite"></span>
+        <button id="saveBtn" class="primary" type="button">保存设置</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="card">
+        <div class="card-head">
+          <h2>字幕与输出</h2>
+          <p>默认双语：原文小字在上，中文大字在下。</p>
+        </div>
+        <div class="grid two">
+          <label class="field">
+            <span>显示方式</span>
+            <select id="layout">
+              <option value="bilingual">双语（原文 + 中文）</option>
+              <option value="zh">仅中文</option>
+              <option value="source">仅原文</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>位置</span>
+            <select id="position">
+              <option value="bottom">底部</option>
+              <option value="top">顶部</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>字号缩放</span>
+            <input id="fontScale" type="range" min="0.75" max="1.5" step="0.05" />
+          </label>
+          <label class="check">
+            <input id="hideNative" type="checkbox" />
+            <span>隐藏站点原生字幕（推荐）</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>翻译服务</h2>
+          <p>
+            按顺序尝试；失败自动切下一条。OpenCode Go 需要 API Key，并发送
+            <code>x-opencode-session</code> 请求头。
+          </p>
+        </div>
+        <div id="translationProviders" class="provider-editor"></div>
+        <div class="row-actions">
+          <button id="addTranslation" class="ghost" type="button">+ 添加 OpenAI 兼容翻译服务</button>
+        </div>
+        <p class="hint">
+          提示：OpenCode Go 官方定位是编码代理，非编码流量可能被限流；建议保留本地 Ollama 作为兜底。
+          未填 Key 的云端服务会被自动跳过。
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>语音识别（无字幕视频）</h2>
+          <p>本地 whisper.cpp 是默认方案；配置 Groq/OpenAI 后可切云端。</p>
+        </div>
+        <div id="asrProviders" class="provider-editor"></div>
+        <div class="row-actions">
+          <button id="addAsr" class="ghost" type="button">+ 添加 OpenAI 兼容 ASR 服务</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>本地模型</h2>
+          <p>本机无独显，本地模型只作为兜底；建议 4 线程，避免 8 线程争抢。本地 Ollama/Whisper 的地址与模型以本区块为准。</p>
+        </div>
+        <div class="grid two">
+          <label class="field">
+            <span>Ollama 地址</span>
+            <input id="ollamaBaseUrl" type="url" placeholder="http://127.0.0.1:11434" />
+          </label>
+          <label class="field">
+            <span>Ollama 模型</span>
+            <input id="ollamaModel" type="text" placeholder="qwen2.5:3b-instruct" />
+          </label>
+          <label class="field">
+            <span>本地 ASR 地址</span>
+            <input id="whisperBaseUrl" type="url" placeholder="http://127.0.0.1:8787" />
+          </label>
+          <label class="field">
+            <span>Whisper 模型</span>
+            <input id="whisperModel" type="text" placeholder="base" />
+          </label>
+        </div>
+        <div class="row-actions">
+          <button id="testLocal" class="ghost" type="button">测试本地服务</button>
+          <span id="localTestResult" class="inline-status"></span>
+        </div>
+        <pre class="code">本地 ASR 启动：
+cd local-asr
+./setup.sh          # 首次：构建 whisper.cpp + 下载 base 模型
+node server.mjs     # 127.0.0.1:8787
+
+Ollama：
+ollama pull qwen2.5:3b-instruct
+# 若扩展连接被拒，重启 Ollama 时设置：
+OLLAMA_ORIGINS='chrome-extension://*' ollama serve</pre>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>内容审核与降级</h2>
+          <p>云端拒绝敏感内容时，自动切到本地模型；不会自动删改原意。</p>
+        </div>
+        <div class="grid two">
+          <label class="check">
+            <input id="localFirst" type="checkbox" />
+            <span>默认本地优先（更隐私，但更慢）</span>
+          </label>
+          <label class="field">
+            <span>同视频拒绝 N 次后切本地</span>
+            <input id="switchThreshold" type="number" min="1" max="20" step="1" />
+          </label>
+          <label class="check">
+            <input id="showOriginalOnFail" type="checkbox" />
+            <span>全部失败时显示原文</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>隐私与缓存</h2>
+          <p>API Key 只保存在本机；音频仅在音频模式下发送到你选择的 ASR 服务。</p>
+        </div>
+        <div class="grid two">
+          <label class="check">
+            <input id="consent" type="checkbox" />
+            <span>我了解字幕文本/音频会发送到所配置的云端服务</span>
+          </label>
+          <label class="check">
+            <input id="debugText" type="checkbox" />
+            <span>诊断日志记录字幕正文（默认关闭）</span>
+          </label>
+        </div>
+        <div class="row-actions">
+          <button id="clearCache" class="danger" type="button">清空翻译缓存</button>
+          <button id="exportLogs" class="ghost" type="button">复制诊断日志</button>
+          <span id="cacheState" class="inline-status"></span>
+        </div>
+      </section>
+
+      <section class="card about">
+        <h2>关于</h2>
+        <p>
+          freeSubtitle 0.1.2 · 字幕轨优先，音频识别兜底。受 DRM 保护的视频可能无法捕获音频；
+          本扩展不提供任何绕过能力。
+        </p>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="./ui/options.js"></script>
+  </body>
+</html>

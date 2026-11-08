@@ -1,0 +1,24 @@
+{
+  "name": "freesubtitle-extension",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "description": "Translate foreign-language web video subtitles/audio into Chinese, as an overlay.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "zip": "node scripts/zip.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
